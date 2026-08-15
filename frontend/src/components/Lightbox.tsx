@@ -48,7 +48,7 @@ export default function Lightbox({ src, onClose }: Props) {
   }
 
   function onMouseDown(e: React.MouseEvent) {
-    if (scale <= 1) return;
+    if (scale === 1) return;
     e.preventDefault();
     setDragging(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
@@ -103,7 +103,7 @@ export default function Lightbox({ src, onClose }: Props) {
         className="lightbox-image"
         style={{
           transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
-          cursor: scale > 1 ? (dragging ? "grabbing" : "grab") : "zoom-in",
+          cursor: scale === 1 ? "zoom-in" : dragging ? "grabbing" : "grab",
           transition: dragging ? "none" : "transform 0.08s ease-out",
         }}
       />
