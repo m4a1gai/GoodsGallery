@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import ImageCropper from "../components/ImageCropper";
 import { acceptCandidate, editCandidateImages, fetchCandidates, rejectCandidate } from "../api/review";
 import type { Candidate } from "../types";
@@ -59,21 +60,25 @@ export default function ReviewQueue() {
       ) : (
         candidates.map((c) => (
           <div key={c.id} className="review-card">
-            {c.images[0] && <img src={c.images[0].url} alt="" />}
+            <Link to={`/review/${c.id}`} style={{ display: "contents" }}>
+              {c.images[0] && <img src={c.images[0].url} alt="" />}
+            </Link>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                <div>
-                  <strong>{c.japanese_name ?? c.canonical_name}</strong>
-                  {c.japanese_name && (
-                    <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{c.canonical_name}</div>
-                  )}
+              <Link to={`/review/${c.id}`} style={{ color: "inherit", textDecoration: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                  <div>
+                    <strong>{c.japanese_name ?? c.canonical_name}</strong>
+                    {c.japanese_name && (
+                      <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{c.canonical_name}</div>
+                    )}
+                  </div>
+                  <span className="confidence-tag">confidence {c.confidence.toFixed(2)}</span>
                 </div>
-                <span className="confidence-tag">confidence {c.confidence.toFixed(2)}</span>
-              </div>
-              <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
-                {c.price ? `¥${c.price}` : "price unknown"} · raw_product #{c.raw_product_id}
-                {c.product_number ? ` · ${c.product_number}` : ""}
-              </div>
+                <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
+                  {c.price ? `¥${c.price}` : "price unknown"} · raw_product #{c.raw_product_id}
+                  {c.product_number ? ` · ${c.product_number}` : ""}
+                </div>
+              </Link>
               <div className="review-actions">
                 <button className="btn primary" disabled={busyId === c.id} onClick={() => handle(c.id, "accept")}>
                   Accept

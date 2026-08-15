@@ -5,6 +5,10 @@ export function fetchCandidates(status: CandidateStatus = "pending"): Promise<Ca
   return api.get(`/api/review/candidates?status=${status}`);
 }
 
+export function fetchCandidate(id: number): Promise<Candidate> {
+  return api.get(`/api/review/candidates/${id}`);
+}
+
 export function acceptCandidate(id: number): Promise<Candidate> {
   return api.post(`/api/review/candidates/${id}/accept`);
 }

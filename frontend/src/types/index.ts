@@ -105,6 +105,7 @@ export interface Candidate {
   confidence: number;
   status: CandidateStatus;
   created_at: string;
+  source_url: string | null;
 }
 
 export type SourceKind = "official" | "manufacturer" | "retailer" | "secondhand" | "search" | "user_submitted";

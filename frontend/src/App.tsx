@@ -1,4 +1,5 @@
 import { NavLink, Route, Routes } from "react-router-dom";
+import CandidateDetail from "./pages/CandidateDetail";
 import CatalogHome from "./pages/CatalogHome";
 import ItemDetail from "./pages/ItemDetail";
 import MyCollection from "./pages/MyCollection";
@@ -27,6 +28,7 @@ function App() {
           <Route path="/items/:id" element={<ItemDetail />} />
           <Route path="/collection" element={<MyCollection />} />
           <Route path="/review" element={<ReviewQueue />} />
+          <Route path="/review/:id" element={<CandidateDetail />} />
           <Route path="/sources" element={<Sources />} />
         </Routes>
       </main>

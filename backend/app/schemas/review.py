@@ -23,6 +23,7 @@ class CandidateOut(BaseModel):
     confidence: float
     status: CandidateStatus
     created_at: dt.datetime
+    source_url: str | None = None
 
 
 class CandidateEditIn(BaseModel):

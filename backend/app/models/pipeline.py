@@ -69,6 +69,10 @@ class Candidate(Base):
 
     raw_product: Mapped[RawProduct] = relationship(back_populates="candidates")
 
+    @property
+    def source_url(self) -> str | None:
+        return self.raw_product.source_url if self.raw_product else None
+
 
 class DuplicateReviewPair(Base):
     """A candidate that looks like it might already exist in the catalog (medium confidence)."""

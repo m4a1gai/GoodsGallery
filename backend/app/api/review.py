@@ -22,6 +22,14 @@ def list_candidates(
     return list(db.scalars(stmt))
 
 
+@router.get("/candidates/{candidate_id}", response_model=CandidateOut)
+def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
+    candidate = db.get(Candidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return candidate
+
+
 class RejectIn(BaseModel):
     reason: str | None = None
 
