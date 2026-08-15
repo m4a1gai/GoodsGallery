@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import ImageCropper from "../components/ImageCropper";
+import Lightbox from "../components/Lightbox";
 import {
   addCatalogItemImage,
   deleteCatalogItemImage,
@@ -19,6 +20,7 @@ export default function ItemDetail() {
   const [collection, setCollection] = useState<UserCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   function reloadItem() {
     fetchCatalogItem(itemId).then(setItem).catch((e) => setError(String(e)));
@@ -75,6 +77,8 @@ export default function ItemDetail() {
             <img
               src={primaryImage.image_url}
               alt={item.canonical_name}
+              onClick={() => setLightboxSrc(primaryImage.image_url)}
+              className="image-zoomable"
               style={{ width: "100%", borderRadius: 10, background: "#000" }}
             />
           ) : (
@@ -209,6 +213,7 @@ export default function ItemDetail() {
       {cropperSrc && (
         <ImageCropper src={cropperSrc} onClose={() => setCropperSrc(null)} onConfirm={handleCropConfirm} />
       )}
+      {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ImageCropper from "../components/ImageCropper";
+import Lightbox from "../components/Lightbox";
 import { fetchCharacters, fetchItemTypes } from "../api/catalog";
 import { acceptCandidate, editCandidateImages, fetchCandidate, rejectCandidate } from "../api/review";
 import type { Candidate, Character, ItemType } from "../types";
@@ -16,6 +17,7 @@ export default function CandidateDetail() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cropperOpen, setCropperOpen] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   function reload() {
     fetchCandidate(candidateId).then(setCandidate).catch((e) => setError(String(e)));
@@ -86,6 +88,8 @@ export default function CandidateDetail() {
             <img
               src={primaryImage.url}
               alt={candidate.canonical_name}
+              onClick={() => setLightboxSrc(primaryImage.url)}
+              className="image-zoomable"
               style={{ width: "100%", borderRadius: 10, background: "#000" }}
             />
           ) : (
@@ -99,6 +103,8 @@ export default function CandidateDetail() {
                   key={i}
                   src={img.url}
                   alt=""
+                  onClick={() => setLightboxSrc(img.url)}
+                  className="image-zoomable"
                   style={{ width: 56, height: 56, borderRadius: 6, objectFit: "cover" }}
                 />
               ))}
@@ -161,6 +167,7 @@ export default function CandidateDetail() {
       {cropperOpen && primaryImage && (
         <ImageCropper src={primaryImage.url} onClose={() => setCropperOpen(false)} onConfirm={handleCropConfirm} />
       )}
+      {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }
