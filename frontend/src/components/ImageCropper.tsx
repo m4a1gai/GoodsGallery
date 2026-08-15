@@ -13,18 +13,11 @@ const DISPLAY_WIDTH = 480;
  * caller back a data: URI — nothing is uploaded anywhere. Exists because box/
  * pack product photos often show several items at once (e.g. a trading badge
  * pack) and we don't want the whole box shot as a single character's head
- * image. Two modes: "grid" slices the image into rows*cols equal cells and
- * you click the one you want (the common case — packs are laid out in a
- * regular grid); "freeform" is a drag rectangle for anything irregular.
+ * image. Drag a rectangle over the part you want.
  */
 export default function ImageCropper({ src, onClose, onConfirm }: Props) {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const [mode, setMode] = useState<"grid" | "freeform">("grid");
-  const [rows, setRows] = useState(2);
-  const [cols, setCols] = useState(5);
-  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragOrigin, setDragOrigin] = useState<{ x: number; y: number } | null>(null);
@@ -64,14 +57,7 @@ export default function ImageCropper({ src, onClose, onConfirm }: Props) {
     onConfirm(dataUrl);
   }
 
-  function confirmGridCell() {
-    if (!selectedCell || !naturalSize) return;
-    const cellW = naturalSize.w / cols;
-    const cellH = naturalSize.h / rows;
-    finish(cropToDataUrl(selectedCell.col * cellW, selectedCell.row * cellH, cellW, cellH));
-  }
-
-  function confirmFreeform() {
+  function confirmSelection() {
     if (!dragRect || !naturalSize) return;
     const scaleX = naturalSize.w / DISPLAY_WIDTH;
     const scaleY = naturalSize.h / displayHeight;
@@ -86,7 +72,6 @@ export default function ImageCropper({ src, onClose, onConfirm }: Props) {
   }
 
   function onMouseDown(e: React.MouseEvent) {
-    if (mode !== "freeform") return;
     const pos = pointerPos(e);
     setIsDragging(true);
     setDragOrigin(pos);
@@ -94,7 +79,7 @@ export default function ImageCropper({ src, onClose, onConfirm }: Props) {
   }
 
   function onMouseMove(e: React.MouseEvent) {
-    if (mode !== "freeform" || !isDragging || !dragOrigin) return;
+    if (!isDragging || !dragOrigin) return;
     const pos = pointerPos(e);
     setDragRect({
       x: Math.min(dragOrigin.x, pos.x),
@@ -118,49 +103,9 @@ export default function ImageCropper({ src, onClose, onConfirm }: Props) {
           </button>
         </div>
 
-        <div className="crop-mode-tabs">
-          <button className={`chip ${mode === "grid" ? "active" : ""}`} onClick={() => setMode("grid")}>
-            Grid slice
-          </button>
-          <button className={`chip ${mode === "freeform" ? "active" : ""}`} onClick={() => setMode("freeform")}>
-            Freeform
-          </button>
-        </div>
-
-        {mode === "grid" && (
-          <div className="crop-grid-controls">
-            <label>
-              Rows
-              <input
-                type="text"
-                inputMode="numeric"
-                value={rows}
-                onChange={(e) => {
-                  setRows(Math.max(1, Number(e.target.value) || 1));
-                  setSelectedCell(null);
-                }}
-              />
-            </label>
-            <label>
-              Cols
-              <input
-                type="text"
-                inputMode="numeric"
-                value={cols}
-                onChange={(e) => {
-                  setCols(Math.max(1, Number(e.target.value) || 1));
-                  setSelectedCell(null);
-                }}
-              />
-            </label>
-            <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>点一个格子选中它</span>
-          </div>
-        )}
-        {mode === "freeform" && (
-          <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0.4rem 0" }}>
-            在图上拖一个矩形框
-          </p>
-        )}
+        <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "0 0 0.6rem" }}>
+          在图上拖一个矩形框
+        </p>
 
         <div
           ref={containerRef}
@@ -181,24 +126,7 @@ export default function ImageCropper({ src, onClose, onConfirm }: Props) {
             draggable={false}
           />
 
-          {mode === "grid" &&
-            Array.from({ length: rows * cols }).map((_, i) => {
-              const row = Math.floor(i / cols);
-              const col = i % cols;
-              const cellW = DISPLAY_WIDTH / cols;
-              const cellH = displayHeight / rows;
-              const isSelected = selectedCell?.row === row && selectedCell?.col === col;
-              return (
-                <div
-                  key={i}
-                  className={`crop-grid-cell ${isSelected ? "selected" : ""}`}
-                  style={{ left: col * cellW, top: row * cellH, width: cellW, height: cellH }}
-                  onClick={() => setSelectedCell({ row, col })}
-                />
-              );
-            })}
-
-          {mode === "freeform" && dragRect && (
+          {dragRect && (
             <div
               className="crop-drag-rect"
               style={{ left: dragRect.x, top: dragRect.y, width: dragRect.w, height: dragRect.h }}
@@ -209,15 +137,9 @@ export default function ImageCropper({ src, onClose, onConfirm }: Props) {
         {error && <p style={{ color: "#e07a7a", fontSize: "0.85rem" }}>{error}</p>}
 
         <div className="review-actions" style={{ marginTop: "0.8rem" }}>
-          {mode === "grid" ? (
-            <button className="btn primary" disabled={!selectedCell} onClick={confirmGridCell}>
-              Use selected cell
-            </button>
-          ) : (
-            <button className="btn primary" disabled={!dragRect || dragRect.w < 4} onClick={confirmFreeform}>
-              Use selection
-            </button>
-          )}
+          <button className="btn primary" disabled={!dragRect || dragRect.w < 4} onClick={confirmSelection}>
+            Use selection
+          </button>
         </div>
       </div>
     </div>
