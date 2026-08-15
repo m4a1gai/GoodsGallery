@@ -21,6 +21,7 @@ class DiscoveryParams:
     character_key: str | None = None
     item_type_code: str | None = None
     max_pages: int = 5
+    start_url: str | None = None  # e.g. a category/collection listing page to paginate through
 
 
 @dataclass

@@ -19,6 +19,7 @@ from selectolax.parser import HTMLParser
 from app.models.enums import CrawlPolicy
 from pipeline.http import USER_AGENT, is_allowed_by_robots, polite_get
 from pipeline.sources.base import DiscoveredUrl, DiscoveryParams, FetchResult, NotModified, RawProductDraft
+from pipeline.sources.common import find_product_ld_json
 
 
 class ManualImportAdapter:
@@ -49,42 +50,31 @@ class ManualImportAdapter:
     def parse(self, fetch_result: FetchResult) -> RawProductDraft:
         tree = HTMLParser(fetch_result.html)
 
-        title = None
-        price = None
-        currency = None
-        images: list[dict] = []
-        metadata: dict = {}
-
-        # 1. JSON-LD structured data (schema.org/Product) is the most reliable signal.
+        json_ld_blocks = []
         for node in tree.css('script[type="application/ld+json"]'):
             try:
-                data = json.loads(node.text())
+                json_ld_blocks.append(json.loads(node.text()))
             except (json.JSONDecodeError, TypeError):
                 continue
-            candidates = data if isinstance(data, list) else [data]
-            for entry in candidates:
-                if not isinstance(entry, dict):
-                    continue
-                if entry.get("@type") in ("Product", "product"):
-                    title = title or entry.get("name")
-                    offers = entry.get("offers")
-                    if isinstance(offers, dict):
-                        price = price or offers.get("price")
-                        currency = currency or offers.get("priceCurrency")
-                    image = entry.get("image")
-                    if isinstance(image, str):
-                        images.append({"url": image})
-                    elif isinstance(image, list):
-                        images.extend({"url": i} for i in image if isinstance(i, str))
-                    metadata["json_ld"] = entry
+
+        # 1. JSON-LD structured data (schema.org/Product) is the most reliable signal.
+        extracted = find_product_ld_json(json_ld_blocks)
+        title = extracted.title if extracted else None
+        price = extracted.price if extracted else None
+        currency = extracted.currency if extracted else None
+        images: list[dict] = [{"url": u} for u in (extracted.images if extracted else [])]
+        metadata: dict = {"json_ld": extracted.raw} if extracted else {}
+        if extracted and extracted.product_number:
+            metadata["product_number"] = extracted.product_number
 
         # 2. OpenGraph fallback.
         if title is None:
             og_title = tree.css_first('meta[property="og:title"]')
             title = og_title.attrs.get("content") if og_title else None
-        og_image = tree.css_first('meta[property="og:image"]')
-        if og_image and og_image.attrs.get("content"):
-            images.append({"url": og_image.attrs["content"]})
+        if not images:
+            og_image = tree.css_first('meta[property="og:image"]')
+            if og_image and og_image.attrs.get("content"):
+                images.append({"url": og_image.attrs["content"]})
 
         # 3. <title> as last resort.
         if title is None and tree.css_first("title"):
@@ -95,7 +85,7 @@ class ManualImportAdapter:
         return RawProductDraft(
             source_url=fetch_result.url,
             raw_title=title,
-            raw_price=float(price) if price not in (None, "") else None,
+            raw_price=price,
             raw_currency=currency,
             raw_images=images,
             raw_metadata=metadata,

@@ -17,3 +17,17 @@ class SourceOut(BaseModel):
     crawl_policy: CrawlPolicy
     robots_checked_at: dt.datetime | None
     notes: str | None
+
+
+class CrawlRequestIn(BaseModel):
+    start_url: str
+    max_pages: int = 3
+    limit: int | None = None
+
+
+class CrawlResultOut(BaseModel):
+    discovered: int
+    created: int
+    skipped_already_seen: int
+    errors: int
+    candidate_ids: list[int]

@@ -115,6 +115,14 @@ def run() -> None:
             Source(key="manual_import", name="Manual URL Import", kind=SourceKind.user_submitted,
                    crawl_policy=CrawlPolicy.manual_import_only,
                    notes="Human pastes a public product URL; only automated fetch path enabled in phase 1."),
+            Source(key="bushiroad_store", name="Bushiroad Store", kind=SourceKind.official,
+                   base_url="https://bushiroad-store.com", trust_priority=90,
+                   crawl_policy=CrawlPolicy.auto,
+                   robots_checked_at=dt.datetime.now(dt.timezone.utc),
+                   notes=("robots.txt (checked 2026-08-15): /collections/ and /products/ allowed for generic UA, "
+                          "only sort/filter query-string variants disallowed; sitemap.xml published. "
+                          "ToS (checked 2026-08-15): no scraping restriction found. Manufacturer's own storefront. "
+                          "discover() only runs against a collection URL a human supplies, never scheduled.")),
             Source(key="official_bang_dream", name="BanG Dream! Official Site", kind=SourceKind.official,
                    base_url="https://bang-dream.com", trust_priority=100,
                    crawl_policy=CrawlPolicy.manual_import_only,

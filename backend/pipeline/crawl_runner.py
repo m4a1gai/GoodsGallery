@@ -1,20 +1,26 @@
-"""Orchestrates one pipeline run: fetch -> RawProduct -> normalize -> Candidate
+"""Orchestrates pipeline runs: fetch -> RawProduct -> normalize -> Candidate
 -> dedup against the existing catalog.
 
-Phase 1 only drives this with ManualImportAdapter (a human-supplied URL), so
-there is no scheduler here yet — `run_manual_import` is called directly (e.g.
-from a CLI script or a future admin-triggered API call). Adapters with
-crawl_policy != manual_import_only are intentionally not invoked by anything
-in this module yet; wiring up scheduled `auto` crawling is a P1/P2 follow-up
-once a given source's ToS has been confirmed.
+Two entry points:
+  - `run_manual_import`: one human-supplied URL, always via ManualImportAdapter.
+  - `run_discovery_crawl`: an adapter walks its own `discover()` (e.g. paging
+    through a collection listing) and every URL it finds gets fetched. This
+    only runs for a source whose `crawl_policy` is `auto` in the database —
+    it refuses otherwise — and only when a human explicitly calls it (a CLI
+    script or the Sources page's "Run Crawl" button). There is no scheduler
+    anywhere in this codebase; "auto" describes what an adapter is *allowed*
+    to do in one run, not that anything runs unattended.
 """
 
 from __future__ import annotations
+
+import logging
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.catalog import CatalogItem
+from app.models.enums import CrawlPolicy
 from app.models.lookup import Character, ItemType, Source
 from app.models.pipeline import Candidate, DuplicateReviewPair, RawProduct
 from pipeline.dedup.matcher import (
@@ -24,8 +30,10 @@ from pipeline.dedup.matcher import (
     find_best_match,
 )
 from pipeline.normalize.normalizer import normalize
-from pipeline.sources.base import FetchResult, NotModified
+from pipeline.sources.base import DiscoveryParams, FetchResult, NotModified, RawProductDraft, SourceAdapter
 from pipeline.sources.manual_import import ManualImportAdapter
+
+logger = logging.getLogger(__name__)
 
 
 def _existing_catalog_matchables(db: Session) -> list[tuple[int, MatchableFields]]:
@@ -48,19 +56,7 @@ def _existing_catalog_matchables(db: Session) -> list[tuple[int, MatchableFields
     return out
 
 
-async def run_manual_import(db: Session, source_key: str, url: str) -> Candidate:
-    source = db.scalar(select(Source).where(Source.key == source_key))
-    if source is None:
-        raise ValueError(f"Unknown source key: {source_key}")
-
-    adapter = ManualImportAdapter()
-    fetch_result = await adapter.fetch(url)
-    if fetch_result is NotModified:
-        raise RuntimeError("Page reported not modified on first fetch; unexpected")
-    assert isinstance(fetch_result, FetchResult)
-
-    draft = adapter.parse(fetch_result)
-
+def _ingest_draft(db: Session, source: Source, draft: RawProductDraft, parser_version: str) -> Candidate:
     raw = RawProduct(
         source_id=source.id,
         source_url=draft.source_url,
@@ -71,14 +67,18 @@ async def run_manual_import(db: Session, source_key: str, url: str) -> Candidate
         raw_images=draft.raw_images,
         raw_metadata=draft.raw_metadata,
         raw_html_hash=draft.raw_html_hash,
-        parser_version="manual_import-v1",
+        parser_version=parser_version,
     )
     db.add(raw)
     db.flush()
 
     characters = list(db.scalars(select(Character)))
     normalized = normalize(raw, characters)
-    item_type = db.scalar(select(ItemType).where(ItemType.code == normalized.item_type_code)) if normalized.item_type_code else None
+    item_type = (
+        db.scalar(select(ItemType).where(ItemType.code == normalized.item_type_code))
+        if normalized.item_type_code
+        else None
+    )
 
     candidate = Candidate(
         raw_product_id=raw.id,
@@ -120,6 +120,79 @@ async def run_manual_import(db: Session, source_key: str, url: str) -> Candidate
             )
         )
 
+    return candidate
+
+
+async def _fetch_and_ingest(db: Session, source: Source, adapter: SourceAdapter, url: str, parser_version: str) -> Candidate:
+    fetch_result = await adapter.fetch(url)
+    if fetch_result is NotModified:
+        raise RuntimeError(f"{url} reported not modified on first fetch; unexpected")
+    assert isinstance(fetch_result, FetchResult)
+    draft = adapter.parse(fetch_result)
+    return _ingest_draft(db, source, draft, parser_version)
+
+
+async def run_manual_import(db: Session, source_key: str, url: str) -> Candidate:
+    source = db.scalar(select(Source).where(Source.key == source_key))
+    if source is None:
+        raise ValueError(f"Unknown source key: {source_key}")
+
+    candidate = await _fetch_and_ingest(db, source, ManualImportAdapter(), url, parser_version="manual_import-v1")
     db.commit()
     db.refresh(candidate)
     return candidate
+
+
+async def run_discovery_crawl(
+    db: Session,
+    source_key: str,
+    adapter: SourceAdapter,
+    params: DiscoveryParams,
+    limit: int | None = None,
+) -> dict:
+    """Bulk-import every product an adapter's discover() finds. Refuses to run
+    unless the source's crawl_policy is `auto` in the database — flipping
+    that flag is a deliberate, per-source decision (see Source.notes for the
+    robots.txt/ToS check backing it), not something this function decides.
+    """
+    source = db.scalar(select(Source).where(Source.key == source_key))
+    if source is None:
+        raise ValueError(f"Unknown source key: {source_key}")
+    if source.crawl_policy != CrawlPolicy.auto:
+        raise PermissionError(
+            f"Source {source_key!r} crawl_policy is {source.crawl_policy.value!r}, not 'auto'; "
+            "refusing to bulk-crawl. Use run_manual_import for one URL at a time instead."
+        )
+
+    discovered = await adapter.discover(params)
+    if limit:
+        discovered = discovered[:limit]
+
+    already_seen = {
+        row[0] for row in db.execute(select(RawProduct.source_url).where(RawProduct.source_id == source.id))
+    }
+
+    created: list[Candidate] = []
+    skipped_seen = 0
+    errors = 0
+    for item in discovered:
+        if item.url in already_seen:
+            skipped_seen += 1
+            continue
+        try:
+            candidate = await _fetch_and_ingest(db, source, adapter, item.url, parser_version=f"{source_key}-v1")
+            db.commit()
+            db.refresh(candidate)
+            created.append(candidate)
+        except Exception:
+            db.rollback()
+            errors += 1
+            logger.exception("Failed to ingest %s from source %s", item.url, source_key)
+
+    return {
+        "discovered": len(discovered),
+        "created": len(created),
+        "skipped_already_seen": skipped_seen,
+        "errors": errors,
+        "candidates": created,
+    }

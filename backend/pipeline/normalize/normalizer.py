@@ -86,7 +86,11 @@ def normalize(raw: RawProduct, characters: list[Character]) -> NormalizedCandida
 
     character_ids = match_characters(text_blob, characters)
     item_type_code = guess_item_type(text_blob)
-    product_number = guess_product_number(text_blob)
+
+    # A source's own SKU/GTIN (captured by pipeline/sources/common.py from
+    # JSON-LD) is a far stronger signal than guessing a pattern out of the
+    # title text, so prefer it when a source adapter provided one.
+    product_number = (raw.raw_metadata or {}).get("product_number") or guess_product_number(text_blob)
 
     # Confidence is deliberately conservative here: it only reflects how much
     # signal normalization found, not whether this is a *new* item — dedup
