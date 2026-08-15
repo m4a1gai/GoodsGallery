@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import ImageCropper from "../components/ImageCropper";
+import Lightbox from "../components/Lightbox";
 import { acceptCandidate, editCandidateImages, fetchCandidates, rejectCandidate } from "../api/review";
 import type { Candidate } from "../types";
 
@@ -8,7 +8,7 @@ export default function ReviewQueue() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [cropCandidateId, setCropCandidateId] = useState<number | null>(null);
+  const [lightboxCandidateId, setLightboxCandidateId] = useState<number | null>(null);
 
   function load() {
     fetchCandidates("pending").then(setCandidates).catch((e) => setError(String(e)));
@@ -38,19 +38,17 @@ export default function ReviewQueue() {
       setCandidates((prev) => prev.map((c) => (c.id === candidateId ? updated : c)));
     } catch (e) {
       setError(String(e));
-    } finally {
-      setCropCandidateId(null);
     }
   }
 
-  const cropCandidate = candidates.find((c) => c.id === cropCandidateId);
+  const lightboxCandidate = candidates.find((c) => c.id === lightboxCandidateId);
 
   return (
     <div>
       <h1 style={{ marginTop: 0 }}>Review Queue</h1>
       <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
         New candidates: {candidates.length}. 这些数据来自 pipeline（目前为 seed mock 数据 / 手动导入 / bushiroad_store
-        自动爬取），确认后才会进入 Global Catalog。图片是整盒/多人商品照的话，先用 Crop 截出你要的那一张再 Accept。
+        自动爬取），确认后才会进入 Global Catalog。点缩略图能放大查看，放大界面里可以直接 Crop 截出你要的那一张再 Accept。
       </p>
 
       {error && <p style={{ color: "#e07a7a" }}>{error}</p>}
@@ -60,9 +58,14 @@ export default function ReviewQueue() {
       ) : (
         candidates.map((c) => (
           <div key={c.id} className="review-card">
-            <Link to={`/review/${c.id}`} style={{ display: "contents" }}>
-              {c.images[0] && <img src={c.images[0].url} alt="" />}
-            </Link>
+            {c.images[0] && (
+              <img
+                src={c.images[0].url}
+                alt=""
+                onClick={() => setLightboxCandidateId(c.id)}
+                className="image-zoomable"
+              />
+            )}
             <div style={{ flex: 1 }}>
               <Link to={`/review/${c.id}`} style={{ color: "inherit", textDecoration: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
@@ -86,22 +89,17 @@ export default function ReviewQueue() {
                 <button className="btn danger" disabled={busyId === c.id} onClick={() => handle(c.id, "reject")}>
                   Reject
                 </button>
-                {c.images[0] && (
-                  <button className="btn" disabled={busyId === c.id} onClick={() => setCropCandidateId(c.id)}>
-                    Crop image
-                  </button>
-                )}
               </div>
             </div>
           </div>
         ))
       )}
 
-      {cropCandidate && cropCandidate.images[0] && (
-        <ImageCropper
-          src={cropCandidate.images[0].url}
-          onClose={() => setCropCandidateId(null)}
-          onConfirm={(dataUrl) => handleCropConfirm(cropCandidate.id, dataUrl)}
+      {lightboxCandidate && lightboxCandidate.images[0] && (
+        <Lightbox
+          src={lightboxCandidate.images[0].url}
+          onClose={() => setLightboxCandidateId(null)}
+          onCrop={(dataUrl) => handleCropConfirm(lightboxCandidate.id, dataUrl)}
         />
       )}
     </div>

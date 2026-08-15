@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import ImageCropper from "../components/ImageCropper";
 import Lightbox from "../components/Lightbox";
 import { fetchCharacters, fetchItemTypes } from "../api/catalog";
 import { acceptCandidate, editCandidateImages, fetchCandidate, rejectCandidate } from "../api/review";
@@ -16,7 +15,6 @@ export default function CandidateDetail() {
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [cropperOpen, setCropperOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   function reload() {
@@ -64,8 +62,6 @@ export default function CandidateDetail() {
       setCandidate(updated);
     } catch (e) {
       setError(String(e));
-    } finally {
-      setCropperOpen(false);
     }
   }
 
@@ -109,12 +105,6 @@ export default function CandidateDetail() {
                 />
               ))}
             </div>
-          )}
-
-          {primaryImage && (
-            <button className="btn" style={{ marginTop: "0.6rem" }} onClick={() => setCropperOpen(true)}>
-              Crop image
-            </button>
           )}
         </div>
 
@@ -164,10 +154,9 @@ export default function CandidateDetail() {
         </div>
       </div>
 
-      {cropperOpen && primaryImage && (
-        <ImageCropper src={primaryImage.url} onClose={() => setCropperOpen(false)} onConfirm={handleCropConfirm} />
+      {lightboxSrc && (
+        <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} onCrop={handleCropConfirm} />
       )}
-      {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }

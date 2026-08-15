@@ -337,15 +337,6 @@ input[type="text"], input[type="search"] {
   gap: 1rem;
 }
 
-.crop-canvas-wrap {
-  position: relative;
-  overflow: hidden;
-  border-radius: 8px;
-  background: #000;
-  cursor: crosshair;
-  user-select: none;
-}
-
 .crop-drag-rect {
   position: absolute;
   border: 2px solid var(--accent);
@@ -409,4 +400,34 @@ input[type="text"], input[type="search"] {
 
 .image-zoomable {
   cursor: zoom-in;
+}
+
+.lightbox-hint {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+}
+
+.lightbox-error {
+  position: absolute;
+  bottom: 4.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  color: #e07a7a;
+  font-size: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  max-width: 80vw;
+  text-align: center;
 }

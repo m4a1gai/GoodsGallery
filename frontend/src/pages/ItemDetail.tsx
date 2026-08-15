@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import ImageCropper from "../components/ImageCropper";
 import Lightbox from "../components/Lightbox";
 import {
   addCatalogItemImage,
@@ -19,7 +18,6 @@ export default function ItemDetail() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [collection, setCollection] = useState<UserCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   function reloadItem() {
@@ -55,7 +53,6 @@ export default function ItemDetail() {
 
   async function handleCropConfirm(dataUrl: string) {
     await addCatalogItemImage(itemId, { image_url: dataUrl, is_primary: true });
-    setCropperSrc(null);
     reloadItem();
   }
 
@@ -127,13 +124,8 @@ export default function ItemDetail() {
             </div>
           )}
 
-          {primaryImage && (
-            <button className="btn" style={{ marginTop: "0.6rem" }} onClick={() => setCropperSrc(primaryImage.image_url)}>
-              Crop new image from this
-            </button>
-          )}
           <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.4rem" }}>
-            点缩略图设为头图；整盒/多人商品照可以用 Crop 截出这个角色的部分再设为头图。
+            点缩略图设为头图；点大图可以放大查看，放大界面里也能直接 Crop 截出这个角色的部分再设为头图。
           </p>
         </div>
 
@@ -210,10 +202,9 @@ export default function ItemDetail() {
         </div>
       </div>
 
-      {cropperSrc && (
-        <ImageCropper src={cropperSrc} onClose={() => setCropperSrc(null)} onConfirm={handleCropConfirm} />
+      {lightboxSrc && (
+        <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} onCrop={handleCropConfirm} />
       )}
-      {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }
