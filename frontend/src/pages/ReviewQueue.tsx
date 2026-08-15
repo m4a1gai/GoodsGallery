@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { acceptCandidate, fetchCandidates, rejectCandidate } from "../api/review";
+import ImageCropper from "../components/ImageCropper";
+import { acceptCandidate, editCandidateImages, fetchCandidates, rejectCandidate } from "../api/review";
 import type { Candidate } from "../types";
 
 export default function ReviewQueue() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cropCandidateId, setCropCandidateId] = useState<number | null>(null);
 
   function load() {
     fetchCandidates("pending").then(setCandidates).catch((e) => setError(String(e)));
@@ -26,12 +28,28 @@ export default function ReviewQueue() {
     }
   }
 
+  async function handleCropConfirm(candidateId: number, dataUrl: string) {
+    const candidate = candidates.find((c) => c.id === candidateId);
+    if (!candidate) return;
+    const newImages = [{ url: dataUrl }, ...candidate.images];
+    try {
+      const updated = await editCandidateImages(candidateId, newImages);
+      setCandidates((prev) => prev.map((c) => (c.id === candidateId ? updated : c)));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setCropCandidateId(null);
+    }
+  }
+
+  const cropCandidate = candidates.find((c) => c.id === cropCandidateId);
+
   return (
     <div>
       <h1 style={{ marginTop: 0 }}>Review Queue</h1>
       <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
-        New candidates: {candidates.length}. 这些数据来自 pipeline（目前为 seed mock 数据 / 手动导入），确认后才会进入
-        Global Catalog。
+        New candidates: {candidates.length}. 这些数据来自 pipeline（目前为 seed mock 数据 / 手动导入 / bushiroad_store
+        自动爬取），确认后才会进入 Global Catalog。图片是整盒/多人商品照的话，先用 Crop 截出你要的那一张再 Accept。
       </p>
 
       {error && <p style={{ color: "#e07a7a" }}>{error}</p>}
@@ -63,10 +81,23 @@ export default function ReviewQueue() {
                 <button className="btn danger" disabled={busyId === c.id} onClick={() => handle(c.id, "reject")}>
                   Reject
                 </button>
+                {c.images[0] && (
+                  <button className="btn" disabled={busyId === c.id} onClick={() => setCropCandidateId(c.id)}>
+                    Crop image
+                  </button>
+                )}
               </div>
             </div>
           </div>
         ))
+      )}
+
+      {cropCandidate && cropCandidate.images[0] && (
+        <ImageCropper
+          src={cropCandidate.images[0].url}
+          onClose={() => setCropCandidateId(null)}
+          onConfirm={(dataUrl) => handleCropConfirm(cropCandidate.id, dataUrl)}
+        />
       )}
     </div>
   );

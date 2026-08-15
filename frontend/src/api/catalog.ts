@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { CatalogItemDetail, CatalogItemListItem, Character, ItemType } from "../types";
+import type { CatalogItemDetail, CatalogItemImage, CatalogItemListItem, Character, ItemType } from "../types";
 
 export interface CatalogFilters {
   characterId?: number;
@@ -28,4 +28,19 @@ export function fetchCharacters(): Promise<Character[]> {
 
 export function fetchItemTypes(): Promise<ItemType[]> {
   return api.get(`/api/catalog/item-types`);
+}
+
+export function addCatalogItemImage(
+  itemId: number,
+  payload: { image_url: string; source_item_url?: string; is_primary?: boolean }
+): Promise<CatalogItemImage> {
+  return api.post(`/api/catalog/items/${itemId}/images`, payload);
+}
+
+export function setPrimaryCatalogItemImage(itemId: number, imageId: number): Promise<CatalogItemImage> {
+  return api.patch(`/api/catalog/items/${itemId}/images/${imageId}/primary`, {});
+}
+
+export async function deleteCatalogItemImage(itemId: number, imageId: number): Promise<void> {
+  await api.delete(`/api/catalog/items/${itemId}/images/${imageId}`);
 }

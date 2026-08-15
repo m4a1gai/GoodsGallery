@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { fetchCatalogItem, fetchCharacters } from "../api/catalog";
+import ImageCropper from "../components/ImageCropper";
+import {
+  addCatalogItemImage,
+  deleteCatalogItemImage,
+  fetchCatalogItem,
+  fetchCharacters,
+  setPrimaryCatalogItemImage,
+} from "../api/catalog";
 import { fetchCollection, updateCollection } from "../api/collection";
 import type { CatalogItemDetail, Character, CollectionStatus, UserCollection } from "../types";
 
@@ -11,13 +18,19 @@ export default function ItemDetail() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [collection, setCollection] = useState<UserCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+
+  function reloadItem() {
+    fetchCatalogItem(itemId).then(setItem).catch((e) => setError(String(e)));
+  }
 
   useEffect(() => {
-    fetchCatalogItem(itemId).then(setItem).catch((e) => setError(String(e)));
+    reloadItem();
     fetchCharacters().then(setCharacters).catch(() => {});
     fetchCollection()
       .then((rows) => setCollection(rows.find((r) => r.catalog_item_id === itemId) ?? null))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
   async function setStatus(status: CollectionStatus) {
@@ -28,10 +41,27 @@ export default function ItemDetail() {
     setCollection(updated);
   }
 
+  async function makePrimary(imageId: number) {
+    await setPrimaryCatalogItemImage(itemId, imageId);
+    reloadItem();
+  }
+
+  async function removeImage(imageId: number) {
+    await deleteCatalogItemImage(itemId, imageId);
+    reloadItem();
+  }
+
+  async function handleCropConfirm(dataUrl: string) {
+    await addCatalogItemImage(itemId, { image_url: dataUrl, is_primary: true });
+    setCropperSrc(null);
+    reloadItem();
+  }
+
   if (error) return <p style={{ color: "#e07a7a" }}>{error}</p>;
   if (!item) return <p className="empty-state">Loading...</p>;
 
   const characterById = Object.fromEntries(characters.map((c) => [c.id, c]));
+  const primaryImage = item.images.find((i) => i.is_primary) ?? item.images[0];
 
   return (
     <div>
@@ -41,22 +71,66 @@ export default function ItemDetail() {
 
       <div style={{ display: "flex", gap: "2rem", marginTop: "1rem", flexWrap: "wrap" }}>
         <div style={{ flex: "0 0 320px" }}>
-          {item.images.length > 0 ? (
+          {primaryImage ? (
             <img
-              src={item.images.find((i) => i.is_primary)?.image_url ?? item.images[0].image_url}
+              src={primaryImage.image_url}
               alt={item.canonical_name}
               style={{ width: "100%", borderRadius: 10, background: "#000" }}
             />
           ) : (
             <div className="empty-state">No image</div>
           )}
-          {item.images.length > 1 && (
-            <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem" }}>
+
+          {item.images.length > 0 && (
+            <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
               {item.images.map((img) => (
-                <img key={img.id} src={img.image_url} alt="" style={{ width: 56, height: 56, borderRadius: 6, objectFit: "cover" }} />
+                <div key={img.id} style={{ position: "relative" }}>
+                  <img
+                    src={img.image_url}
+                    alt=""
+                    onClick={() => makePrimary(img.id)}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 6,
+                      objectFit: "cover",
+                      cursor: "pointer",
+                      border: img.is_primary ? "2px solid var(--accent)" : "2px solid transparent",
+                    }}
+                  />
+                  <button
+                    onClick={() => removeImage(img.id)}
+                    title="Remove image"
+                    style={{
+                      position: "absolute",
+                      top: -6,
+                      right: -6,
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      border: "none",
+                      background: "var(--surface-hover)",
+                      color: "var(--text-muted)",
+                      fontSize: "0.7rem",
+                      lineHeight: "18px",
+                      padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
           )}
+
+          {primaryImage && (
+            <button className="btn" style={{ marginTop: "0.6rem" }} onClick={() => setCropperSrc(primaryImage.image_url)}>
+              Crop new image from this
+            </button>
+          )}
+          <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.4rem" }}>
+            点缩略图设为头图；整盒/多人商品照可以用 Crop 截出这个角色的部分再设为头图。
+          </p>
         </div>
 
         <div style={{ flex: "1 1 320px" }}>
@@ -131,6 +205,10 @@ export default function ItemDetail() {
           )}
         </div>
       </div>
+
+      {cropperSrc && (
+        <ImageCropper src={cropperSrc} onClose={() => setCropperSrc(null)} onConfirm={handleCropConfirm} />
+      )}
     </div>
   );
 }

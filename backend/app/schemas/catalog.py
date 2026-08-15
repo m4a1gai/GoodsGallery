@@ -31,6 +31,12 @@ class CatalogItemImageOut(BaseModel):
     is_primary: bool
 
 
+class CatalogItemImageCreateIn(BaseModel):
+    image_url: str
+    source_item_url: str | None = None
+    is_primary: bool = False
+
+
 class CatalogItemSourceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

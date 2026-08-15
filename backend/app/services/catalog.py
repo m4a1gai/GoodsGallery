@@ -78,3 +78,48 @@ def get_primary_image_url(item: CatalogItem) -> str | None:
         if image.is_primary:
             return image.image_url
     return item.images[0].image_url if item.images else None
+
+
+def add_image(
+    db: Session,
+    item: CatalogItem,
+    *,
+    image_url: str,
+    source_id: int | None = None,
+    source_item_url: str | None = None,
+    is_primary: bool = False,
+) -> CatalogItemImage:
+    if is_primary:
+        for existing in item.images:
+            existing.is_primary = False
+    image = CatalogItemImage(
+        catalog_item_id=item.id,
+        image_url=image_url,
+        source_id=source_id,
+        source_item_url=source_item_url,
+        is_primary=is_primary or not item.images,
+    )
+    db.add(image)
+    return image
+
+
+def set_primary_image(db: Session, item: CatalogItem, image_id: int) -> CatalogItemImage:
+    target = next((i for i in item.images if i.id == image_id), None)
+    if target is None:
+        raise ValueError(f"Image {image_id} does not belong to catalog item {item.id}")
+    for existing in item.images:
+        existing.is_primary = existing.id == image_id
+    return target
+
+
+def delete_image(db: Session, item: CatalogItem, image_id: int) -> None:
+    target = next((i for i in item.images if i.id == image_id), None)
+    if target is None:
+        raise ValueError(f"Image {image_id} does not belong to catalog item {item.id}")
+    was_primary = target.is_primary
+    db.delete(target)
+    db.flush()
+    if was_primary and item.images:
+        remaining = [i for i in item.images if i.id != image_id]
+        if remaining:
+            remaining[0].is_primary = True

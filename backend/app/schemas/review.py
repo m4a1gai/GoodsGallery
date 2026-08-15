@@ -33,6 +33,7 @@ class CandidateEditIn(BaseModel):
     item_type_id: int | None = None
     manufacturer: str | None = None
     product_number: str | None = None
+    images: list[dict] | None = None
 
 
 class DuplicateReviewPairOut(BaseModel):

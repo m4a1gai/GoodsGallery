@@ -3,8 +3,22 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.models.catalog import CatalogItem
-from app.schemas.catalog import CatalogItemDetailOut, CatalogItemListOut, CharacterOut, ItemTypeOut
-from app.services.catalog import compute_completeness, get_primary_image_url, list_catalog_items
+from app.schemas.catalog import (
+    CatalogItemDetailOut,
+    CatalogItemImageCreateIn,
+    CatalogItemImageOut,
+    CatalogItemListOut,
+    CharacterOut,
+    ItemTypeOut,
+)
+from app.services.catalog import (
+    add_image,
+    compute_completeness,
+    delete_image,
+    get_primary_image_url,
+    list_catalog_items,
+    set_primary_image,
+)
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
@@ -76,6 +90,49 @@ def get_catalog_item(item_id: int, db: Session = Depends(get_db)):
         images=item.images,
         item_sources=item.item_sources,
     )
+
+
+@router.post("/items/{item_id}/images", response_model=CatalogItemImageOut)
+def create_catalog_item_image(item_id: int, payload: CatalogItemImageCreateIn, db: Session = Depends(get_db)):
+    item = db.get(CatalogItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+    image = add_image(
+        db,
+        item,
+        image_url=payload.image_url,
+        source_item_url=payload.source_item_url,
+        is_primary=payload.is_primary,
+    )
+    db.commit()
+    db.refresh(image)
+    return image
+
+
+@router.patch("/items/{item_id}/images/{image_id}/primary", response_model=CatalogItemImageOut)
+def make_image_primary(item_id: int, image_id: int, db: Session = Depends(get_db)):
+    item = db.get(CatalogItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+    try:
+        image = set_primary_image(db, item, image_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    db.commit()
+    db.refresh(image)
+    return image
+
+
+@router.delete("/items/{item_id}/images/{image_id}", status_code=204)
+def remove_catalog_item_image(item_id: int, image_id: int, db: Session = Depends(get_db)):
+    item = db.get(CatalogItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+    try:
+        delete_image(db, item, image_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    db.commit()
 
 
 @router.get("/characters", response_model=list[CharacterOut])
