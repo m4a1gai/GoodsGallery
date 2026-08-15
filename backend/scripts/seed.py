@@ -9,7 +9,10 @@ Usage:
     python -m scripts.seed
 """
 
+import base64
 import datetime as dt
+import hashlib
+from xml.sax.saxutils import escape
 
 from app.core.db import Base, SessionLocal, engine
 from app.models.catalog import CatalogItem, CatalogItemImage
@@ -18,7 +21,45 @@ from app.models.enums import CandidateStatus, CollectionStatus, CrawlPolicy, Sou
 from app.models.lookup import Band, Character, ItemType, Source
 from app.models.pipeline import Candidate, RawProduct
 
-PLACEHOLDER_IMG = "https://placehold.co/400x400?text={label}"
+PALETTE = ["#ff6fa5", "#4c8bf5", "#f5a623", "#59c78a", "#a374db", "#e0607a"]
+
+
+def placeholder_data_uri(label: str) -> str:
+    """Self-contained inline-SVG placeholder image (no external network call,
+    so it always renders regardless of ad blockers / offline dev / CDN
+    hiccups). Only used for seed/mock data — real catalog images come from
+    CatalogItemImage.image_url pointing at an actual source once the pipeline
+    ingests real products.
+    """
+    color = PALETTE[int(hashlib.sha256(label.encode()).hexdigest(), 16) % len(PALETTE)]
+
+    words = label.split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if len(candidate) > 14 and current:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    lines = lines[:4]
+
+    line_height = 26
+    start_y = 200 - (len(lines) - 1) * line_height / 2
+    text_spans = "".join(
+        f'<tspan x="200" y="{start_y + i * line_height:.0f}">{escape(line)}</tspan>' for i, line in enumerate(lines)
+    )
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">'
+        f'<rect width="400" height="400" fill="{color}"/>'
+        f'<text font-family="sans-serif" font-size="22" fill="white" text-anchor="middle">{text_spans}</text>'
+        f"</svg>"
+    )
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
 
 
 def run() -> None:
@@ -120,7 +161,7 @@ def run() -> None:
             db.add(
                 CatalogItemImage(
                     catalog_item_id=item.id,
-                    image_url=PLACEHOLDER_IMG.format(label=name.replace(" ", "+")),
+                    image_url=placeholder_data_uri(name),
                     is_primary=True,
                 )
             )
@@ -193,7 +234,7 @@ def run() -> None:
             raw_title="戸山香澄 缶バッジ (再販)",
             raw_price=770,
             raw_currency="JPY",
-            raw_images=[{"url": PLACEHOLDER_IMG.format(label="Reprint+Badge")}],
+            raw_images=[{"url": placeholder_data_uri("Reprint Badge")}],
             raw_metadata={"note": "seed mock raw product, not real"},
             parser_version="seed-v1",
         )
@@ -203,7 +244,7 @@ def run() -> None:
             raw_title="Poppin'Party Kasumi New Keychain 2026",
             raw_price=1200,
             raw_currency="JPY",
-            raw_images=[{"url": PLACEHOLDER_IMG.format(label="New+Keychain")}],
+            raw_images=[{"url": placeholder_data_uri("New Keychain")}],
             raw_metadata={"note": "seed mock raw product, not real"},
             parser_version="seed-v1",
         )
@@ -221,7 +262,7 @@ def run() -> None:
                     product_number="BD-K-001",
                     price=770,
                     currency="JPY",
-                    images=[{"url": PLACEHOLDER_IMG.format(label="Reprint+Badge")}],
+                    images=[{"url": placeholder_data_uri("Reprint Badge")}],
                     confidence=0.55,
                     status=CandidateStatus.pending,
                 ),
@@ -233,7 +274,7 @@ def run() -> None:
                     item_type_id=item_types[3].id,
                     price=1200,
                     currency="JPY",
-                    images=[{"url": PLACEHOLDER_IMG.format(label="New+Keychain")}],
+                    images=[{"url": placeholder_data_uri("New Keychain")}],
                     confidence=0.68,
                     status=CandidateStatus.pending,
                 ),
