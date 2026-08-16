@@ -37,6 +37,16 @@ class CandidateEditIn(BaseModel):
     images: list[dict] | None = None
 
 
+class SplitItemIn(BaseModel):
+    canonical_name: str
+    japanese_name: str | None = None
+    image_url: str
+
+
+class SplitRequestIn(BaseModel):
+    splits: list[SplitItemIn]
+
+
 class DuplicateReviewPairOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

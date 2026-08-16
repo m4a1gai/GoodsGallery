@@ -63,6 +63,65 @@ def accept_candidate(db: Session, candidate: Candidate) -> CatalogItem:
     return catalog_item
 
 
+def split_candidate(db: Session, candidate: Candidate, splits: list[dict]) -> list[CatalogItem]:
+    """One raw listing sometimes bundles several distinct designs of the same
+    character (e.g. a 10-design trading badge pack with 2 different Kasumi
+    arts) — treating that as a single catalog item hides one of the designs.
+    Each split gets its own CatalogItem, image, and CatalogItemSource (all
+    pointing at the same source_url, so the shared origin is still visible),
+    but otherwise inherits the candidate's fields (character/type/series/
+    price/etc — these are genuinely the same across designs from one
+    listing). product_number gets a per-split suffix so the splits don't
+    collide with each other or a future real per-design SKU on dedup.
+    """
+    raw = candidate.raw_product
+    created: list[CatalogItem] = []
+    now = dt.datetime.now(dt.timezone.utc)
+
+    for i, split in enumerate(splits, start=1):
+        item = CatalogItem(
+            canonical_name=split["canonical_name"],
+            japanese_name=split.get("japanese_name"),
+            original_title=raw.raw_title,
+            character_ids=candidate.character_ids,
+            series=candidate.series,
+            item_type_id=candidate.item_type_id,
+            manufacturer=candidate.manufacturer,
+            release_date=candidate.release_date,
+            official_price=candidate.price,
+            currency=candidate.currency,
+            product_number=f"{candidate.product_number}-{i}" if candidate.product_number else None,
+            created_by="crawler",
+            updated_by="crawler",
+        )
+        db.add(item)
+        db.flush()
+
+        db.add(
+            CatalogItemImage(
+                catalog_item_id=item.id,
+                image_url=split["image_url"],
+                source_id=raw.source_id,
+                source_item_url=raw.source_url,
+                is_primary=True,
+            )
+        )
+        db.add(
+            CatalogItemSource(
+                catalog_item_id=item.id,
+                source_id=raw.source_id,
+                source_url=raw.source_url,
+                source_price=candidate.price,
+                last_seen_at=now,
+            )
+        )
+        created.append(item)
+
+    candidate.status = CandidateStatus.split
+    candidate.reviewed_at = now
+    return created
+
+
 def merge_candidate(db: Session, candidate: Candidate, catalog_item: CatalogItem) -> CatalogItem:
     raw = candidate.raw_product
     _add_images_and_source(db, catalog_item, candidate, raw)

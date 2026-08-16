@@ -1,6 +1,6 @@
 import datetime as dt
 
-from sqlalchemy import ARRAY, Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import ARRAY, Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -52,7 +52,10 @@ class CatalogItemImage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     catalog_item_id: Mapped[int] = mapped_column(ForeignKey("catalog_item.id"))
-    image_url: Mapped[str] = mapped_column(String(1000))
+    # Text, not String(N): a cropped image is stored as a base64 data: URI
+    # here (see pipeline images strategy in README), which can run to tens
+    # of KB — nowhere near a normal URL's length.
+    image_url: Mapped[str] = mapped_column(Text)
     source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id"))
     source_item_url: Mapped[str | None] = mapped_column(String(1000))
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)

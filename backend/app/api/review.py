@@ -7,8 +7,8 @@ from app.core.db import get_db
 from app.models.catalog import CatalogItem
 from app.models.enums import CandidateStatus
 from app.models.pipeline import Candidate, DuplicateReviewPair
-from app.schemas.review import CandidateEditIn, CandidateOut, DuplicateReviewPairOut
-from app.services.review import accept_candidate, reject_candidate, resolve_duplicate_pair
+from app.schemas.review import CandidateEditIn, CandidateOut, DuplicateReviewPairOut, SplitRequestIn
+from app.services.review import accept_candidate, reject_candidate, resolve_duplicate_pair, split_candidate
 
 router = APIRouter(prefix="/api/review", tags=["review"])
 
@@ -56,6 +56,21 @@ def reject(candidate_id: int, payload: RejectIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(candidate)
     return candidate
+
+
+@router.post("/candidates/{candidate_id}/split")
+def split(candidate_id: int, payload: SplitRequestIn, db: Session = Depends(get_db)):
+    candidate = db.get(Candidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if candidate.status != CandidateStatus.pending:
+        raise HTTPException(status_code=400, detail="Candidate already reviewed")
+    if len(payload.splits) < 2:
+        raise HTTPException(status_code=400, detail="Splitting requires at least 2 items")
+
+    items = split_candidate(db, candidate, [s.model_dump() for s in payload.splits])
+    db.commit()
+    return {"catalog_item_ids": [item.id for item in items]}
 
 
 @router.patch("/candidates/{candidate_id}", response_model=CandidateOut)

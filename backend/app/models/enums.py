@@ -22,6 +22,7 @@ class CandidateStatus(str, enum.Enum):
     accepted = "accepted"
     rejected = "rejected"
     merged = "merged"
+    split = "split"
 
 
 class DuplicateReviewStatus(str, enum.Enum):

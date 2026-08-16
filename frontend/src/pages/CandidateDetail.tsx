@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Lightbox from "../components/Lightbox";
 import { fetchCharacters, fetchItemTypes } from "../api/catalog";
-import { acceptCandidate, editCandidateImages, fetchCandidate, rejectCandidate } from "../api/review";
+import { acceptCandidate, editCandidateImages, fetchCandidate, rejectCandidate, splitCandidate } from "../api/review";
 import type { Candidate, Character, ItemType } from "../types";
 
 export default function CandidateDetail() {
@@ -16,6 +16,10 @@ export default function CandidateDetail() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitSelected, setSplitSelected] = useState<Set<number>>(new Set());
+  const [splitNames, setSplitNames] = useState<Record<number, string>>({});
+  const [splitBusy, setSplitBusy] = useState(false);
 
   function reload() {
     fetchCandidate(candidateId).then(setCandidate).catch((e) => setError(String(e)));
@@ -65,6 +69,41 @@ export default function CandidateDetail() {
     }
   }
 
+  function toggleSplitMode() {
+    setSplitMode((v) => !v);
+    setSplitSelected(new Set());
+    setSplitNames({});
+  }
+
+  function toggleSplitImage(i: number) {
+    setSplitSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+    setSplitNames((prev) =>
+      prev[i] !== undefined ? prev : { ...prev, [i]: candidate?.japanese_name ?? candidate?.canonical_name ?? "" }
+    );
+  }
+
+  async function handleSplitConfirm() {
+    if (!candidate || splitSelected.size < 2) return;
+    setSplitBusy(true);
+    try {
+      const splits = [...splitSelected].map((i) => {
+        const name = splitNames[i]?.trim() || candidate.canonical_name;
+        return { canonical_name: name, japanese_name: name, image_url: candidate.images[i].url };
+      });
+      await splitCandidate(candidate.id, splits);
+      navigate("/review");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSplitBusy(false);
+    }
+  }
+
   if (error) return <p style={{ color: "#e07a7a" }}>{error}</p>;
   if (!candidate) return <p className="empty-state">Loading...</p>;
 
@@ -104,6 +143,48 @@ export default function CandidateDetail() {
                   style={{ width: 56, height: 56, borderRadius: 6, objectFit: "cover" }}
                 />
               ))}
+            </div>
+          )}
+
+          {candidate.images.length >= 2 && (
+            <div style={{ marginTop: "0.8rem" }}>
+              <button className="btn" onClick={toggleSplitMode}>
+                {splitMode ? "Cancel split" : "Split into multiple items"}
+              </button>
+              <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
+                一件商品图里如果混了同一角色的不同图案（比如一盒里有两款香澄），可以分别裁剪出来后在这里拆成独立的图鉴条目。
+              </p>
+            </div>
+          )}
+
+          {splitMode && (
+            <div style={{ marginTop: "0.6rem" }}>
+              {candidate.images.map((img, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
+                  <input type="checkbox" checked={splitSelected.has(i)} onChange={() => toggleSplitImage(i)} />
+                  <img src={img.url} alt="" style={{ width: 40, height: 40, borderRadius: 4, objectFit: "cover" }} />
+                  <input
+                    type="text"
+                    placeholder="Name for this design"
+                    disabled={!splitSelected.has(i)}
+                    value={splitNames[i] ?? ""}
+                    onChange={(e) => setSplitNames((prev) => ({ ...prev, [i]: e.target.value }))}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              ))}
+              <button
+                className="btn primary"
+                disabled={splitSelected.size < 2 || splitBusy}
+                onClick={handleSplitConfirm}
+              >
+                {splitBusy ? "Creating..." : `Create ${splitSelected.size || ""} catalog items`}
+              </button>
+              {splitSelected.size === 1 && (
+                <p style={{ fontSize: "0.75rem", color: "var(--warn)", marginTop: "0.3rem" }}>
+                  至少选 2 张图片才需要拆分——只有 1 张的话直接 Accept 就行。
+                </p>
+              )}
             </div>
           )}
         </div>

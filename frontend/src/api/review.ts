@@ -20,3 +20,13 @@ export function rejectCandidate(id: number, reason?: string): Promise<Candidate>
 export function editCandidateImages(id: number, images: { url: string }[]): Promise<Candidate> {
   return api.patch(`/api/review/candidates/${id}`, { images });
 }
+
+export interface SplitItem {
+  canonical_name: string;
+  japanese_name?: string;
+  image_url: string;
+}
+
+export function splitCandidate(id: number, splits: SplitItem[]): Promise<{ catalog_item_ids: number[] }> {
+  return api.post(`/api/review/candidates/${id}/split`, { splits });
+}
